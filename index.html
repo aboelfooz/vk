@@ -305,6 +305,7 @@
     let currentY = 0;
     let isDragging = false;
     let currentPosition = 0;
+    let activeIframe = null;
     
     // تهيئة التطبيق
     function init() {
@@ -398,6 +399,8 @@
       videos.forEach((link, index) => {
         const slide = document.createElement("div");
         slide.className = "short-slide";
+        slide.dataset.index = index;
+        
         if (index === 0) {
           slide.classList.add("active");
         } else if (index === 1) {
@@ -410,7 +413,8 @@
         shortDiv.className = "short";
         shortDiv.innerHTML = `
           <iframe 
-            src="${link}" 
+            src="${index === 0 ? link : ''}" 
+            data-src="${link}"
             allow="autoplay; encrypted-media; fullscreen; picture-in-picture;" 
             allowfullscreen
             loading="lazy">
@@ -420,9 +424,15 @@
         slide.appendChild(shortDiv);
         container.appendChild(slide);
       });
+      
+      // تخزين الإطار النشط الحالي
+      activeIframe = document.querySelector('.short-slide.active iframe');
     }
     
     function setupSwipeEvents() {
+      // إزالة أي أحداث سابقة
+      container.replaceWith(container.cloneNode(true));
+      
       // أحداث اللمس
       container.addEventListener('touchstart', handleTouchStart, { passive: true });
       container.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -447,6 +457,12 @@
       startY = e.touches[0].clientY;
       currentPosition = 0;
       isDragging = true;
+      
+      // إيقاف أي انتقالات أثناء السحب
+      const slides = document.querySelectorAll('.short-slide');
+      slides.forEach(slide => {
+        slide.style.transition = 'none';
+      });
     }
     
     function handleTouchMove(e) {
@@ -473,6 +489,12 @@
       startY = e.clientY;
       currentPosition = 0;
       isDragging = true;
+      
+      // إيقاف أي انتقالات أثناء السحب
+      const slides = document.querySelectorAll('.short-slide');
+      slides.forEach(slide => {
+        slide.style.transition = 'none';
+      });
     }
     
     function handleMouseMove(e) {
@@ -550,12 +572,35 @@
       const slides = document.querySelectorAll('.short-slide');
       const dots = document.querySelectorAll('.dot');
       
+      // إيقاف الفيديو الحالي
+      if (activeIframe) {
+        const activeSrc = activeIframe.src;
+        activeIframe.src = '';
+        
+        // إذا كنا نعود إلى الفيديو السابق، نعيد تحميله
+        if (index === currentIndex - 1) {
+          setTimeout(() => {
+            activeIframe.src = activeSrc;
+          }, 400);
+        }
+      }
+      
       // إخفاء جميع الشرائح غير الضرورية
       slides.forEach((slide, i) => {
         if (i < index - 1 || i > index + 1) {
           slide.style.display = 'none';
+          // إيقاف تحميل الفيديوهات غير المرئية
+          const iframe = slide.querySelector('iframe');
+          if (iframe && iframe.src) {
+            iframe.src = '';
+          }
         } else {
           slide.style.display = 'flex';
+          // تحميل الفيديو عند الحاجة
+          const iframe = slide.querySelector('iframe');
+          if (iframe && !iframe.src && iframe.dataset.src) {
+            iframe.src = iframe.dataset.src;
+          }
         }
       });
       
@@ -565,6 +610,8 @@
         
         if (i === index) {
           slide.classList.add('active');
+          // تعيين الإطار النشط الجديد
+          activeIframe = slide.querySelector('iframe');
         } else if (i === index - 1) {
           slide.classList.add('prev');
         } else if (i === index + 1) {
