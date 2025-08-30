@@ -24,7 +24,7 @@
       align-items: center;
       min-height: 100vh;
       overflow: hidden;
-      touch-action: none;
+      touch-action: pan-y;
     }
     
     .header {
@@ -78,27 +78,28 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      opacity: 0;
-      transition: transform 0.5s ease, opacity 0.5s ease;
+      transition: transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.4s ease;
       transform: translateY(100%);
+      opacity: 0;
+      z-index: 1;
     }
     
     .short-slide.active {
       opacity: 1;
       transform: translateY(0);
-      z-index: 2;
+      z-index: 3;
     }
     
     .short-slide.prev {
-      opacity: 0;
       transform: translateY(-100%);
-      z-index: 1;
+      opacity: 0;
+      z-index: 2;
     }
     
     .short-slide.next {
-      opacity: 0;
       transform: translateY(100%);
-      z-index: 1;
+      opacity: 0;
+      z-index: 2;
     }
     
     .short {
@@ -167,6 +168,17 @@
       margin-bottom: 15px;
     }
     
+    .error button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background: #e74c3c;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    
     .nav-dots {
       position: fixed;
       bottom: 20px;
@@ -184,6 +196,7 @@
       border-radius: 50%;
       background: rgba(255, 255, 255, 0.5);
       transition: all 0.3s ease;
+      cursor: pointer;
     }
     
     .dot.active {
@@ -210,9 +223,33 @@
       50% { opacity: 1; }
     }
     
+    .github-info {
+      position: fixed;
+      top: 70px;
+      right: 15px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 8px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    .github-info i {
+      color: #8e44ad;
+    }
+    
     @media (max-width: 768px) {
       .header h1 {
         font-size: 1.2rem;
+      }
+      
+      .github-info {
+        top: 65px;
+        right: 10px;
+        font-size: 0.7rem;
       }
     }
   </style>
@@ -226,10 +263,15 @@
     </button>
   </div>
 
+  <div class="github-info">
+    <i class="fab fa-github"></i>
+    <span>جلب البيانات من GitHub</span>
+  </div>
+
   <div id="shorts-container">
     <div class="loading">
       <div class="spinner"></div>
-      <p>جاري تحميل الفيديوهات...</p>
+      <p>جاري تحميل الفيديوهات من GitHub...</p>
     </div>
   </div>
 
@@ -245,38 +287,78 @@
     const fullscreenBtn = document.getElementById("fullscreen-btn");
     
     // رابط JSON من GitHub - يجب استبدال USERNAME و REPO بالقيم الفعلية
-    const jsonUrl = "https://raw.githubusercontent.com/aboelfooz/Quran-mp3/main/videos.json";
+    const GITHUB_USERNAME = "aboelfooz";
+    const GITHUB_REPO = "Quran-mp3";
+    const JSON_FILE_PATH = "videos.json";
+    const jsonUrl = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/main/${JSON_FILE_PATH}`;
     
-    // بيانات نموذجية للمثال (يمكن حذفها عند استخدام البيانات الحقيقية)
-    // const sampleData = [
-    //   "https://vk.com/video_ext.php?oid=-123456789&id=123456789&hash=abc123def456",
-    //   "https://vk.com/video_ext.php?oid=-987654321&id=987654321&hash=ghi789jkl012",
-    //   "https://vk.com/video_ext.php?oid=-112233445&id=112233445&hash=mno345pqr678"
-    // ];
+    // بيانات نموذجية للطوارئ (سيتم استخدامها فقط إذا فشل جلب البيانات من GitHub)
+    const fallbackData = [
+      "https://vk.com/video_ext.php?oid=-123456789&id=123456789&hash=abc123def456",
+      "https://vk.com/video_ext.php?oid=-987654321&id=987654321&hash=ghi789jkl012",
+      "https://vk.com/video_ext.php?oid=-112233445&id=112233445&hash=mno345pqr678"
+    ];
     
     let videos = [];
     let currentIndex = 0;
     let startY = 0;
     let currentY = 0;
     let isDragging = false;
+    let currentPosition = 0;
     
-    // محاولة جلب البيانات من GitHub
-    fetch(jsonUrl)
-      .then(response => {
-        if (!response.ok) throw new Error("فشل في تحميل البيانات");
-        return response.json();
-      })
-      .then(videosData => {
-        videos = videosData;
-        displayVideos();
-      })
-      .catch(error => {
-        // في حالة الخطأ، استخدام البيانات النموذجية لأغراض العرض
-        console.error("خطأ في جلب البيانات:", error);
-        console.log("جاري استخدام بيانات نموذجية للعرض...");
-        videos = sampleData;
-        displayVideos();
-      });
+    // تهيئة التطبيق
+    function init() {
+      loadVideosFromGitHub();
+      setupFullscreenButton();
+    }
+    
+    // جلب بيانات الفيديوهات من GitHub
+    function loadVideosFromGitHub() {
+      const loadingElement = document.querySelector('.loading');
+      if (loadingElement) {
+        loadingElement.innerHTML = `
+          <div class="spinner"></div>
+          <p>جاري تحميل الفيديوهات من GitHub...</p>
+          <p style="font-size: 0.8rem; margin-top: 10px;">${jsonUrl}</p>
+        `;
+      }
+      
+      fetch(jsonUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`خطأ في جلب البيانات: ${response.status} ${response.statusText}`);
+          }
+          return response.json();
+        })
+        .then(videosData => {
+          if (Array.isArray(videosData) && videosData.length > 0) {
+            videos = videosData;
+            displayVideos();
+          } else {
+            throw new Error("بيانات الفيديوهات غير صالحة أو فارغة");
+          }
+        })
+        .catch(error => {
+          console.error("خطأ في جلب البيانات من GitHub:", error);
+          showError(`فشل تحميل البيانات من GitHub. سيتم استخدام بيانات تجريبية.`, true);
+          
+          // استخدام البيانات الاحتياطية بعد تأخير قصير
+          setTimeout(() => {
+            videos = fallbackData;
+            displayVideos();
+          }, 3000);
+        });
+    }
+    
+    function showError(message, showRetry = false) {
+      container.innerHTML = `
+        <div class="error">
+          <i class="fas fa-exclamation-circle"></i>
+          <p>${message}</p>
+          ${showRetry ? `<button onclick="loadVideosFromGitHub()"><i class="fas fa-redo"></i> إعادة المحاولة</button>` : ''}
+        </div>
+      `;
+    }
     
     function displayVideos() {
       const loadingElement = document.querySelector('.loading');
@@ -285,29 +367,44 @@
       }
       
       if (videos.length === 0) {
-        container.innerHTML = `
-          <div class="error">
-            <i class="fas fa-exclamation-circle"></i>
-            <p>لا تتوفر فيديوهات حاليًا</p>
-          </div>
-        `;
+        showError("لا تتوفر فيديوهات حاليًا");
         return;
       }
       
       // إنشاء نقاط التنقل
+      createNavigationDots();
+      
+      // إنشاء شرائح الفيديوهات
+      createVideoSlides();
+      
+      // إعداد أحداث السحب
+      setupSwipeEvents();
+    }
+    
+    function createNavigationDots() {
       navDots.innerHTML = '';
       for (let i = 0; i < videos.length; i++) {
         const dot = document.createElement('div');
         dot.className = 'dot';
         if (i === 0) dot.classList.add('active');
+        dot.addEventListener('click', () => goToVideo(i));
         navDots.appendChild(dot);
       }
+    }
+    
+    function createVideoSlides() {
+      container.innerHTML = '';
       
-      // إنشاء شرائح الفيديوهات
       videos.forEach((link, index) => {
         const slide = document.createElement("div");
         slide.className = "short-slide";
-        if (index === 0) slide.classList.add("active");
+        if (index === 0) {
+          slide.classList.add("active");
+        } else if (index === 1) {
+          slide.classList.add("next");
+        } else {
+          slide.style.display = 'none';
+        }
         
         const shortDiv = document.createElement("div");
         shortDiv.className = "short";
@@ -323,31 +420,39 @@
         slide.appendChild(shortDiv);
         container.appendChild(slide);
       });
-      
-      // إضافة أحداث السحب
-      setupSwipeEvents();
     }
     
     function setupSwipeEvents() {
-      container.addEventListener('touchstart', handleTouchStart, { passive: false });
+      // أحداث اللمس
+      container.addEventListener('touchstart', handleTouchStart, { passive: true });
       container.addEventListener('touchmove', handleTouchMove, { passive: false });
       container.addEventListener('touchend', handleTouchEnd);
       
+      // أحداث الماوس
       container.addEventListener('mousedown', handleMouseDown);
       container.addEventListener('mousemove', handleMouseMove);
       container.addEventListener('mouseup', handleMouseEnd);
       container.addEventListener('mouseleave', handleMouseEnd);
+      
+      // منع سلوك النقر الطبيعي
+      container.addEventListener('click', (e) => {
+        if (isDragging) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }, true);
     }
     
     function handleTouchStart(e) {
       startY = e.touches[0].clientY;
+      currentPosition = 0;
       isDragging = true;
     }
     
     function handleTouchMove(e) {
       if (!isDragging) return;
-      e.preventDefault();
       
+      e.preventDefault();
       currentY = e.touches[0].clientY;
       const diffY = currentY - startY;
       
@@ -361,10 +466,12 @@
       const diffY = currentY - startY;
       finalizeSwipe(diffY);
       isDragging = false;
+      currentPosition = 0;
     }
     
     function handleMouseDown(e) {
       startY = e.clientY;
+      currentPosition = 0;
       isDragging = true;
     }
     
@@ -384,6 +491,7 @@
       const diffY = currentY - startY;
       finalizeSwipe(diffY);
       isDragging = false;
+      currentPosition = 0;
     }
     
     function updateSlidePosition(diffY) {
@@ -392,26 +500,30 @@
       
       // تحريك الشريحة النشطة
       activeSlide.style.transform = `translateY(${diffY}px)`;
+      currentPosition = diffY;
       
       // إظهار الشريحة التالية أو السابقة بناءً على اتجاه السحب
       if (diffY > 0 && currentIndex > 0) {
         const prevSlide = slides[currentIndex - 1];
+        prevSlide.style.display = 'flex';
         prevSlide.classList.add('prev');
         prevSlide.style.transform = `translateY(${diffY - window.innerHeight}px)`;
       } else if (diffY < 0 && currentIndex < videos.length - 1) {
         const nextSlide = slides[currentIndex + 1];
+        nextSlide.style.display = 'flex';
         nextSlide.classList.add('next');
         nextSlide.style.transform = `translateY(${diffY + window.innerHeight}px)`;
       }
     }
     
     function finalizeSwipe(diffY) {
-      const slides = document.querySelectorAll('.short-slide');
-      const threshold = window.innerHeight / 4;
+      const threshold = window.innerHeight / 5; // عتبة أقل لجعل السحب أسهل
       
       // إعادة تعيين التحويلات
+      const slides = document.querySelectorAll('.short-slide');
       slides.forEach(slide => {
         slide.style.transform = '';
+        slide.style.transition = 'transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.4s ease';
       });
       
       // التحديد إذا كان السحب كافياً لتغيير الفيديو
@@ -425,52 +537,80 @@
         // البقاء في الفيديو الحالي
         goToVideo(currentIndex);
       }
+      
+      // إعادة تفعيل الانتقال بعد التغيير
+      setTimeout(() => {
+        slides.forEach(slide => {
+          slide.style.transition = '';
+        });
+      }, 400);
     }
     
     function goToVideo(index) {
       const slides = document.querySelectorAll('.short-slide');
       const dots = document.querySelectorAll('.dot');
       
-      // إخفاء الشريحة الحالية
-      slides[currentIndex].classList.remove('active', 'prev', 'next');
+      // إخفاء جميع الشرائح غير الضرورية
+      slides.forEach((slide, i) => {
+        if (i < index - 1 || i > index + 1) {
+          slide.style.display = 'none';
+        } else {
+          slide.style.display = 'flex';
+        }
+      });
       
-      // إلغاء تنشيط النقطة الحالية
-      dots[currentIndex].classList.remove('active');
+      // تحديث حالة الشرائح
+      slides.forEach((slide, i) => {
+        slide.classList.remove('active', 'prev', 'next');
+        
+        if (i === index) {
+          slide.classList.add('active');
+        } else if (i === index - 1) {
+          slide.classList.add('prev');
+        } else if (i === index + 1) {
+          slide.classList.add('next');
+        }
+      });
+      
+      // تحديث النقاط
+      dots.forEach((dot, i) => {
+        dot.classList.remove('active');
+        if (i === index) dot.classList.add('active');
+      });
       
       // تحديث المؤشر الحالي
       currentIndex = index;
-      
-      // إظهار الشريحة الجديدة
-      slides[currentIndex].classList.add('active');
-      slides[currentIndex].classList.remove('prev', 'next');
-      
-      // تنشيط النقطة الجديدة
-      dots[currentIndex].classList.add('active');
     }
     
-    // دالة وضع الشاشة كاملة
-    fullscreenBtn.addEventListener('click', toggleFullscreen);
+    function setupFullscreenButton() {
+      fullscreenBtn.addEventListener('click', toggleFullscreen);
+      
+      // تغيير أيقونة وضع الملء عند الخروج من وضع الملء
+      document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) {
+          fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+        } else {
+          fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
+        }
+      });
+    }
     
     function toggleFullscreen() {
       if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(err => {
-          console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-        });
-        fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(err => {
+            console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+          });
+        }
       } else {
         if (document.exitFullscreen) {
           document.exitFullscreen();
-          fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
         }
       }
     }
     
-    // تغيير أيقونة وضع الملء عند الخروج من وضع الملء
-    document.addEventListener('fullscreenchange', () => {
-      if (!document.fullscreenElement) {
-        fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
-      }
-    });
+    // تهيئة التطبيق عند تحميل الصفحة
+    window.addEventListener('DOMContentLoaded', init);
   </script>
 
 </body>
