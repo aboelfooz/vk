@@ -24,7 +24,6 @@
       align-items: center;
       min-height: 100vh;
       overflow: hidden;
-      touch-action: pan-y;
     }
     
     .header {
@@ -60,6 +59,12 @@
       justify-content: center;
       cursor: pointer;
       backdrop-filter: blur(5px);
+      transition: all 0.3s ease;
+    }
+    
+    .fullscreen-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(1.1);
     }
     
     #shorts-container {
@@ -78,7 +83,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.4s ease;
+      transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.5s ease;
       transform: translateY(100%);
       opacity: 0;
       z-index: 1;
@@ -106,6 +111,9 @@
       width: 100%;
       height: 100%;
       background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
     }
     
     .short iframe {
@@ -177,6 +185,12 @@
       border-radius: 5px;
       cursor: pointer;
       font-size: 1rem;
+      transition: all 0.3s ease;
+    }
+    
+    .error button:hover {
+      background: #c0392b;
+      transform: translateY(-2px);
     }
     
     .nav-dots {
@@ -205,22 +219,49 @@
       border-radius: 4px;
     }
     
-    .swipe-indicator {
+    .nav-buttons {
       position: fixed;
-      bottom: 60px;
+      bottom: 80px;
       left: 0;
       right: 0;
       display: flex;
       justify-content: center;
-      color: rgba(255, 255, 255, 0.7);
-      font-size: 0.9rem;
+      gap: 20px;
       z-index: 100;
-      animation: fadeInOut 2s infinite;
     }
     
-    @keyframes fadeInOut {
-      0%, 100% { opacity: 0.5; }
-      50% { opacity: 1; }
+    .nav-btn {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+    
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    }
+    
+    .nav-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .nav-btn:disabled:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: none;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
     }
     
     .github-info {
@@ -235,10 +276,24 @@
       display: flex;
       align-items: center;
       gap: 5px;
+      backdrop-filter: blur(5px);
+      transition: all 0.3s ease;
     }
     
     .github-info i {
       color: #8e44ad;
+    }
+    
+    .video-counter {
+      position: fixed;
+      top: 70px;
+      left: 15px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 8px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      z-index: 100;
+      backdrop-filter: blur(5px);
     }
     
     @media (max-width: 768px) {
@@ -251,10 +306,56 @@
         right: 10px;
         font-size: 0.7rem;
       }
+      
+      .video-counter {
+        top: 65px;
+        left: 10px;
+        font-size: 0.7rem;
+      }
+      
+      .nav-buttons {
+        bottom: 70px;
+      }
+      
+      .nav-btn {
+        width: 45px;
+        height: 45px;
+      }
+    }
+    
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.2);
+      z-index: 101;
+      overflow: hidden;
+    }
+    
+    .progress-bar-inner {
+      height: 100%;
+      background: linear-gradient(to right, #3498db, #8e44ad);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    
+    .fade-in {
+      animation: fadeIn 0.5s ease forwards;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
   </style>
 </head>
 <body>
+
+  <div class="progress-bar">
+    <div class="progress-bar-inner" id="progress-bar"></div>
+  </div>
 
   <div class="header">
     <h1><i class="fas fa-video"></i> فيديوهات Shorts</h1>
@@ -268,6 +369,8 @@
     <span>جلب البيانات من GitHub</span>
   </div>
 
+  <div class="video-counter" id="video-counter">1 / 3</div>
+
   <div id="shorts-container">
     <div class="loading">
       <div class="spinner"></div>
@@ -275,16 +378,25 @@
     </div>
   </div>
 
-  <div class="nav-dots" id="nav-dots"></div>
-  
-  <div class="swipe-indicator">
-    <i class="fas fa-arrow-up"></i> اسحب لأعلى أو لأسفل للتنقل <i class="fas fa-arrow-down"></i>
+  <div class="nav-buttons">
+    <button class="nav-btn" id="prev-btn" disabled>
+      <i class="fas fa-chevron-up"></i>
+    </button>
+    <button class="nav-btn" id="next-btn">
+      <i class="fas fa-chevron-down"></i>
+    </button>
   </div>
+
+  <div class="nav-dots" id="nav-dots"></div>
 
   <script>
     const container = document.getElementById("shorts-container");
     const navDots = document.getElementById("nav-dots");
     const fullscreenBtn = document.getElementById("fullscreen-btn");
+    const prevBtn = document.getElementById("prev-btn");
+    const nextBtn = document.getElementById("next-btn");
+    const videoCounter = document.getElementById("video-counter");
+    const progressBar = document.getElementById("progress-bar");
     
     // رابط JSON من GitHub - يجب استبدال USERNAME و REPO بالقيم الفعلية
     const GITHUB_USERNAME = "aboelfooz";
@@ -301,16 +413,13 @@
     
     let videos = [];
     let currentIndex = 0;
-    let startY = 0;
-    let currentY = 0;
-    let isDragging = false;
-    let currentPosition = 0;
     let activeIframe = null;
     
     // تهيئة التطبيق
     function init() {
       loadVideosFromGitHub();
       setupFullscreenButton();
+      setupNavButtons();
     }
     
     // جلب بيانات الفيديوهات من GitHub
@@ -320,27 +429,34 @@
         loadingElement.innerHTML = `
           <div class="spinner"></div>
           <p>جاري تحميل الفيديوهات من GitHub...</p>
-          <p style="font-size: 0.8rem; margin-top: 10px;">${jsonUrl}</p>
         `;
       }
+      
+      // تحديث شريط التقدم
+      updateProgressBar(30);
       
       fetch(jsonUrl)
         .then(response => {
           if (!response.ok) {
             throw new Error(`خطأ في جلب البيانات: ${response.status} ${response.statusText}`);
           }
+          updateProgressBar(60);
           return response.json();
         })
         .then(videosData => {
           if (Array.isArray(videosData) && videosData.length > 0) {
             videos = videosData;
-            displayVideos();
+            updateProgressBar(100);
+            setTimeout(() => {
+              displayVideos();
+            }, 500);
           } else {
             throw new Error("بيانات الفيديوهات غير صالحة أو فارغة");
           }
         })
         .catch(error => {
           console.error("خطأ في جلب البيانات من GitHub:", error);
+          updateProgressBar(100);
           showError(`فشل تحميل البيانات من GitHub. سيتم استخدام بيانات تجريبية.`, true);
           
           // استخدام البيانات الاحتياطية بعد تأخير قصير
@@ -351,9 +467,13 @@
         });
     }
     
+    function updateProgressBar(percent) {
+      progressBar.style.width = `${percent}%`;
+    }
+    
     function showError(message, showRetry = false) {
       container.innerHTML = `
-        <div class="error">
+        <div class="error fade-in">
           <i class="fas fa-exclamation-circle"></i>
           <p>${message}</p>
           ${showRetry ? `<button onclick="loadVideosFromGitHub()"><i class="fas fa-redo"></i> إعادة المحاولة</button>` : ''}
@@ -372,14 +492,17 @@
         return;
       }
       
+      // تحديث العداد
+      updateVideoCounter();
+      
       // إنشاء نقاط التنقل
       createNavigationDots();
       
       // إنشاء شرائح الفيديوهات
       createVideoSlides();
       
-      // إعداد أحداث السحب
-      setupSwipeEvents();
+      // تحديث حالة أزرار التنقل
+      updateNavButtons();
     }
     
     function createNavigationDots() {
@@ -429,143 +552,21 @@
       activeIframe = document.querySelector('.short-slide.active iframe');
     }
     
-    function setupSwipeEvents() {
-      // إزالة أي أحداث سابقة
-      container.replaceWith(container.cloneNode(true));
-      
-      // أحداث اللمس
-      container.addEventListener('touchstart', handleTouchStart, { passive: true });
-      container.addEventListener('touchmove', handleTouchMove, { passive: false });
-      container.addEventListener('touchend', handleTouchEnd);
-      
-      // أحداث الماوس
-      container.addEventListener('mousedown', handleMouseDown);
-      container.addEventListener('mousemove', handleMouseMove);
-      container.addEventListener('mouseup', handleMouseEnd);
-      container.addEventListener('mouseleave', handleMouseEnd);
-      
-      // منع سلوك النقر الطبيعي
-      container.addEventListener('click', (e) => {
-        if (isDragging) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      }, true);
+    function setupNavButtons() {
+      prevBtn.addEventListener('click', goToPrevVideo);
+      nextBtn.addEventListener('click', goToNextVideo);
     }
     
-    function handleTouchStart(e) {
-      startY = e.touches[0].clientY;
-      currentPosition = 0;
-      isDragging = true;
-      
-      // إيقاف أي انتقالات أثناء السحب
-      const slides = document.querySelectorAll('.short-slide');
-      slides.forEach(slide => {
-        slide.style.transition = 'none';
-      });
-    }
-    
-    function handleTouchMove(e) {
-      if (!isDragging) return;
-      
-      e.preventDefault();
-      currentY = e.touches[0].clientY;
-      const diffY = currentY - startY;
-      
-      // تحديث موضع الشريحة أثناء السحب
-      updateSlidePosition(diffY);
-    }
-    
-    function handleTouchEnd() {
-      if (!isDragging) return;
-      
-      const diffY = currentY - startY;
-      finalizeSwipe(diffY);
-      isDragging = false;
-      currentPosition = 0;
-    }
-    
-    function handleMouseDown(e) {
-      startY = e.clientY;
-      currentPosition = 0;
-      isDragging = true;
-      
-      // إيقاف أي انتقالات أثناء السحب
-      const slides = document.querySelectorAll('.short-slide');
-      slides.forEach(slide => {
-        slide.style.transition = 'none';
-      });
-    }
-    
-    function handleMouseMove(e) {
-      if (!isDragging) return;
-      
-      currentY = e.clientY;
-      const diffY = currentY - startY;
-      
-      // تحديث موضع الشريحة أثناء السحب
-      updateSlidePosition(diffY);
-    }
-    
-    function handleMouseEnd() {
-      if (!isDragging) return;
-      
-      const diffY = currentY - startY;
-      finalizeSwipe(diffY);
-      isDragging = false;
-      currentPosition = 0;
-    }
-    
-    function updateSlidePosition(diffY) {
-      const slides = document.querySelectorAll('.short-slide');
-      const activeSlide = slides[currentIndex];
-      
-      // تحريك الشريحة النشطة
-      activeSlide.style.transform = `translateY(${diffY}px)`;
-      currentPosition = diffY;
-      
-      // إظهار الشريحة التالية أو السابقة بناءً على اتجاه السحب
-      if (diffY > 0 && currentIndex > 0) {
-        const prevSlide = slides[currentIndex - 1];
-        prevSlide.style.display = 'flex';
-        prevSlide.classList.add('prev');
-        prevSlide.style.transform = `translateY(${diffY - window.innerHeight}px)`;
-      } else if (diffY < 0 && currentIndex < videos.length - 1) {
-        const nextSlide = slides[currentIndex + 1];
-        nextSlide.style.display = 'flex';
-        nextSlide.classList.add('next');
-        nextSlide.style.transform = `translateY(${diffY + window.innerHeight}px)`;
-      }
-    }
-    
-    function finalizeSwipe(diffY) {
-      const threshold = window.innerHeight / 5; // عتبة أقل لجعل السحب أسهل
-      
-      // إعادة تعيين التحويلات
-      const slides = document.querySelectorAll('.short-slide');
-      slides.forEach(slide => {
-        slide.style.transform = '';
-        slide.style.transition = 'transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.4s ease';
-      });
-      
-      // التحديد إذا كان السحب كافياً لتغيير الفيديو
-      if (diffY > threshold && currentIndex > 0) {
-        // الانتقال إلى الفيديو السابق
+    function goToPrevVideo() {
+      if (currentIndex > 0) {
         goToVideo(currentIndex - 1);
-      } else if (diffY < -threshold && currentIndex < videos.length - 1) {
-        // الانتقال إلى الفيديو التالي
-        goToVideo(currentIndex + 1);
-      } else {
-        // البقاء في الفيديو الحالي
-        goToVideo(currentIndex);
       }
-      
-      // إعادة تفعيل الانتقال بعد التغيير
-      setTimeout(() => {
-        slides.forEach(slide => {
-          slide.style.transition = '';
-        });
-      }, 400);
+    }
+    
+    function goToNextVideo() {
+      if (currentIndex < videos.length - 1) {
+        goToVideo(currentIndex + 1);
+      }
     }
     
     function goToVideo(index) {
@@ -576,13 +577,6 @@
       if (activeIframe) {
         const activeSrc = activeIframe.src;
         activeIframe.src = '';
-        
-        // إذا كنا نعود إلى الفيديو السابق، نعيد تحميله
-        if (index === currentIndex - 1) {
-          setTimeout(() => {
-            activeIframe.src = activeSrc;
-          }, 400);
-        }
       }
       
       // إخفاء جميع الشرائح غير الضرورية
@@ -609,7 +603,7 @@
         slide.classList.remove('active', 'prev', 'next');
         
         if (i === index) {
-          slide.classList.add('active');
+          slide.classList.add('active");
           // تعيين الإطار النشط الجديد
           activeIframe = slide.querySelector('iframe');
         } else if (i === index - 1) {
@@ -627,6 +621,21 @@
       
       // تحديث المؤشر الحالي
       currentIndex = index;
+      
+      // تحديث العداد
+      updateVideoCounter();
+      
+      // تحديث حالة أزرار التنقل
+      updateNavButtons();
+    }
+    
+    function updateNavButtons() {
+      prevBtn.disabled = currentIndex === 0;
+      nextBtn.disabled = currentIndex === videos.length - 1;
+    }
+    
+    function updateVideoCounter() {
+      videoCounter.textContent = `${currentIndex + 1} / ${videos.length}`;
     }
     
     function setupFullscreenButton() {
