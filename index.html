@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shorts GitHub API</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      color: #f0f0f0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+      touch-action: none;
+    }
+    
+    .header {
+      position: fixed;
+      top: 0;
+      right: 0;
+      left: 0;
+      z-index: 100;
+      padding: 15px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .header h1 {
+      font-size: 1.5rem;
+      background: linear-gradient(45deg, #3498db, #8e44ad);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    
+    .fullscreen-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      backdrop-filter: blur(5px);
+    }
+    
+    #shorts-container {
+      width: 100%;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .short-slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: transform 0.5s ease, opacity 0.5s ease;
+      transform: translateY(100%);
+    }
+    
+    .short-slide.active {
+      opacity: 1;
+      transform: translateY(0);
+      z-index: 2;
+    }
+    
+    .short-slide.prev {
+      opacity: 0;
+      transform: translateY(-100%);
+      z-index: 1;
+    }
+    
+    .short-slide.next {
+      opacity: 0;
+      transform: translateY(100%);
+      z-index: 1;
+    }
+    
+    .short {
+      width: 100%;
+      height: 100%;
+      background: #000;
+    }
+    
+    .short iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #000;
+    }
+    
+    .loading {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      background: #000;
+      z-index: 1000;
+      color: #7f8c8d;
+    }
+    
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      border-top-color: #3498db;
+      animation: spin 1s ease-in-out infinite;
+    }
+    
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    
+    .error {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #e74c3c;
+      text-align: center;
+      padding: 30px;
+      background: #000;
+      z-index: 1000;
+    }
+    
+    .error i {
+      font-size: 2.5rem;
+      margin-bottom: 15px;
+    }
+    
+    .nav-dots {
+      position: fixed;
+      bottom: 20px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      z-index: 100;
+    }
+    
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.5);
+      transition: all 0.3s ease;
+    }
+    
+    .dot.active {
+      background: #fff;
+      width: 20px;
+      border-radius: 4px;
+    }
+    
+    .swipe-indicator {
+      position: fixed;
+      bottom: 60px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.9rem;
+      z-index: 100;
+      animation: fadeInOut 2s infinite;
+    }
+    
+    @keyframes fadeInOut {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+    
+    @media (max-width: 768px) {
+      .header h1 {
+        font-size: 1.2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1><i class="fas fa-video"></i> فيديوهات Shorts</h1>
+    <button class="fullscreen-btn" id="fullscreen-btn">
+      <i class="fas fa-expand"></i>
+    </button>
+  </div>
+
+  <div id="shorts-container">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>جاري تحميل الفيديوهات...</p>
+    </div>
+  </div>
+
+  <div class="nav-dots" id="nav-dots"></div>
+  
+  <div class="swipe-indicator">
+    <i class="fas fa-arrow-up"></i> اسحب لأعلى أو لأسفل للتنقل <i class="fas fa-arrow-down"></i>
+  </div>
+
+  <script>
+    const container = document.getElementById("shorts-container");
+    const navDots = document.getElementById("nav-dots");
+    const fullscreenBtn = document.getElementById("fullscreen-btn");
+    
+    // رابط JSON من GitHub - يجب استبدال USERNAME و REPO بالقيم الفعلية
+    const jsonUrl = "https://raw.githubusercontent.com/aboelfooz/Quran-mp3/main/videos.json";
+    
+    // بيانات نموذجية للمثال (يمكن حذفها عند استخدام البيانات الحقيقية)
+    // const sampleData = [
+    //   "https://vk.com/video_ext.php?oid=-123456789&id=123456789&hash=abc123def456",
+    //   "https://vk.com/video_ext.php?oid=-987654321&id=987654321&hash=ghi789jkl012",
+    //   "https://vk.com/video_ext.php?oid=-112233445&id=112233445&hash=mno345pqr678"
+    // ];
+    
+    let videos = [];
+    let currentIndex = 0;
+    let startY = 0;
+    let currentY = 0;
+    let isDragging = false;
+    
+    // محاولة جلب البيانات من GitHub
+    fetch(jsonUrl)
+      .then(response => {
+        if (!response.ok) throw new Error("فشل في تحميل البيانات");
+        return response.json();
+      })
+      .then(videosData => {
+        videos = videosData;
+        displayVideos();
+      })
+      .catch(error => {
+        // في حالة الخطأ، استخدام البيانات النموذجية لأغراض العرض
+        console.error("خطأ في جلب البيانات:", error);
+        console.log("جاري استخدام بيانات نموذجية للعرض...");
+        videos = sampleData;
+        displayVideos();
+      });
+    
+    function displayVideos() {
+      const loadingElement = document.querySelector('.loading');
+      if (loadingElement) {
+        loadingElement.remove();
+      }
+      
+      if (videos.length === 0) {
+        container.innerHTML = `
+          <div class="error">
+            <i class="fas fa-exclamation-circle"></i>
+            <p>لا تتوفر فيديوهات حاليًا</p>
+          </div>
+        `;
+        return;
+      }
+      
+      // إنشاء نقاط التنقل
+      navDots.innerHTML = '';
+      for (let i = 0; i < videos.length; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        if (i === 0) dot.classList.add('active');
+        navDots.appendChild(dot);
+      }
+      
+      // إنشاء شرائح الفيديوهات
+      videos.forEach((link, index) => {
+        const slide = document.createElement("div");
+        slide.className = "short-slide";
+        if (index === 0) slide.classList.add("active");
+        
+        const shortDiv = document.createElement("div");
+        shortDiv.className = "short";
+        shortDiv.innerHTML = `
+          <iframe 
+            src="${link}" 
+            allow="autoplay; encrypted-media; fullscreen; picture-in-picture;" 
+            allowfullscreen
+            loading="lazy">
+          </iframe>
+        `;
+        
+        slide.appendChild(shortDiv);
+        container.appendChild(slide);
+      });
+      
+      // إضافة أحداث السحب
+      setupSwipeEvents();
+    }
+    
+    function setupSwipeEvents() {
+      container.addEventListener('touchstart', handleTouchStart, { passive: false });
+      container.addEventListener('touchmove', handleTouchMove, { passive: false });
+      container.addEventListener('touchend', handleTouchEnd);
+      
+      container.addEventListener('mousedown', handleMouseDown);
+      container.addEventListener('mousemove', handleMouseMove);
+      container.addEventListener('mouseup', handleMouseEnd);
+      container.addEventListener('mouseleave', handleMouseEnd);
+    }
+    
+    function handleTouchStart(e) {
+      startY = e.touches[0].clientY;
+      isDragging = true;
+    }
+    
+    function handleTouchMove(e) {
+      if (!isDragging) return;
+      e.preventDefault();
+      
+      currentY = e.touches[0].clientY;
+      const diffY = currentY - startY;
+      
+      // تحديث موضع الشريحة أثناء السحب
+      updateSlidePosition(diffY);
+    }
+    
+    function handleTouchEnd() {
+      if (!isDragging) return;
+      
+      const diffY = currentY - startY;
+      finalizeSwipe(diffY);
+      isDragging = false;
+    }
+    
+    function handleMouseDown(e) {
+      startY = e.clientY;
+      isDragging = true;
+    }
+    
+    function handleMouseMove(e) {
+      if (!isDragging) return;
+      
+      currentY = e.clientY;
+      const diffY = currentY - startY;
+      
+      // تحديث موضع الشريحة أثناء السحب
+      updateSlidePosition(diffY);
+    }
+    
+    function handleMouseEnd() {
+      if (!isDragging) return;
+      
+      const diffY = currentY - startY;
+      finalizeSwipe(diffY);
+      isDragging = false;
+    }
+    
+    function updateSlidePosition(diffY) {
+      const slides = document.querySelectorAll('.short-slide');
+      const activeSlide = slides[currentIndex];
+      
+      // تحريك الشريحة النشطة
+      activeSlide.style.transform = `translateY(${diffY}px)`;
+      
+      // إظهار الشريحة التالية أو السابقة بناءً على اتجاه السحب
+      if (diffY > 0 && currentIndex > 0) {
+        const prevSlide = slides[currentIndex - 1];
+        prevSlide.classList.add('prev');
+        prevSlide.style.transform = `translateY(${diffY - window.innerHeight}px)`;
+      } else if (diffY < 0 && currentIndex < videos.length - 1) {
+        const nextSlide = slides[currentIndex + 1];
+        nextSlide.classList.add('next');
+        nextSlide.style.transform = `translateY(${diffY + window.innerHeight}px)`;
+      }
+    }
+    
+    function finalizeSwipe(diffY) {
+      const slides = document.querySelectorAll('.short-slide');
+      const threshold = window.innerHeight / 4;
+      
+      // إعادة تعيين التحويلات
+      slides.forEach(slide => {
+        slide.style.transform = '';
+      });
+      
+      // التحديد إذا كان السحب كافياً لتغيير الفيديو
+      if (diffY > threshold && currentIndex > 0) {
+        // الانتقال إلى الفيديو السابق
+        goToVideo(currentIndex - 1);
+      } else if (diffY < -threshold && currentIndex < videos.length - 1) {
+        // الانتقال إلى الفيديو التالي
+        goToVideo(currentIndex + 1);
+      } else {
+        // البقاء في الفيديو الحالي
+        goToVideo(currentIndex);
+      }
+    }
+    
+    function goToVideo(index) {
+      const slides = document.querySelectorAll('.short-slide');
+      const dots = document.querySelectorAll('.dot');
+      
+      // إخفاء الشريحة الحالية
+      slides[currentIndex].classList.remove('active', 'prev', 'next');
+      
+      // إلغاء تنشيط النقطة الحالية
+      dots[currentIndex].classList.remove('active');
+      
+      // تحديث المؤشر الحالي
+      currentIndex = index;
+      
+      // إظهار الشريحة الجديدة
+      slides[currentIndex].classList.add('active');
+      slides[currentIndex].classList.remove('prev', 'next');
+      
+      // تنشيط النقطة الجديدة
+      dots[currentIndex].classList.add('active');
+    }
+    
+    // دالة وضع الشاشة كاملة
+    fullscreenBtn.addEventListener('click', toggleFullscreen);
+    
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+        });
+        fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+          fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+        }
+      }
+    }
+    
+    // تغيير أيقونة وضع الملء عند الخروج من وضع الملء
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) {
+        fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+      }
+    });
+  </script>
+
+</body>
+</html>
